@@ -1,0 +1,54 @@
+﻿global
+    log /dev/log local0
+    log /dev/log local1 notice
+    chroot /var/lib/haproxy
+    user haproxy
+    group haproxy
+    daemon
+
+    # Maximum concurrent TCP connections
+    maxconn 65535
+
+    # Modern TLS settings
+    tune.ssl.default-dh-param 2048
+
+defaults
+    log     global
+    mode    tcp
+    option  tcplog
+    option  dontlognull
+    retries 3
+    timeout connect 5000ms
+    timeout client  50000ms
+    timeout server  50000ms
+
+# ------------------------------------------------------------------------------
+# HTTPS (Port 443) SNI Inspection & Transparent Forwarding
+# Consoles connect here after DNS rewrites gaming domains.
+# HAProxy inspects the TLS SNI header without decrypting or breaking certificates.
+# ------------------------------------------------------------------------------
+frontend sni_in
+    bind 0.0.0.0:443
+    mode tcp
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req_ssl_hello_type 1 }
+
+    # By default, pass all inspected TLS connections to our tunnel upstream
+    default_backend backend_germany_tunnel_https
+
+backend backend_germany_tunnel_https
+    mode tcp
+    # Inter-server tunnel ingress (rathole client local port or direct tunnel)
+    server tunnel_germany 127.0.0.1:8443 check inter 3000 rise 2 fall 3
+
+# ------------------------------------------------------------------------------
+# HTTP (Port 80) Plain Forwarding (for legacy CDN / API endpoints)
+# ------------------------------------------------------------------------------
+frontend http_in
+    bind 0.0.0.0:80
+    mode tcp
+    default_backend backend_germany_tunnel_http
+
+backend backend_germany_tunnel_http
+    mode tcp
+    server tunnel_germany_http 127.0.0.1:8080 check inter 3000 rise 2 fall 3

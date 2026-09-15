@@ -1,0 +1,22 @@
+﻿# ==============================================================================
+# Rathole Client Configuration (Runs on Iran Server)
+# ==============================================================================
+[client]
+remote_addr = "__GERMANY_IP__:2333"
+default_token = "__TUNNEL_TOKEN__"
+
+# Heartbeat & TCP connection tuning
+heartbeat_interval = 20
+
+[client.transport]
+type = "tcp"
+[client.transport.tcp]
+nodelay = true
+
+[client.services.https]
+type = "tcp"
+local_addr = "127.0.0.1:8443"
+
+[client.services.http]
+type = "tcp"
+local_addr = "127.0.0.1:8080"

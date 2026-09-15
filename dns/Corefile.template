@@ -1,0 +1,36 @@
+﻿.:53 {
+    # Bind to standard DNS port (UDP and TCP)
+    bind 0.0.0.0
+
+    # Fast local caching (keeps TTLs between 5s and 3600s)
+    cache 3600 {
+        success 4096
+        denial 1024
+        prefetch 10 1m 10%
+    }
+
+    # Error logging and health endpoint
+    errors
+    health :8080
+
+    # Rate limiting to prevent DNS amplification attacks
+    ratelimit {
+        rate 150
+        burst 300
+    }
+
+    # Rewrite gaming domains to resolve directly to our Iran SNI proxy IP
+    # The __IRAN_IP__ placeholder will be dynamically replaced by deploy.sh
+    import /etc/coredns/gaming_rewrites.conf
+
+    # High-speed recursive upstream forwarding with health checks
+    forward . 1.1.1.1 8.8.8.8 9.9.9.9 1.0.0.1 {
+        prefer_udp
+        max_fails 3
+        expire 10s
+        health_check 5s
+    }
+
+    # Prometheus metrics endpoint for monitoring and Phase 2 dashboard
+    prometheus :9153
+}

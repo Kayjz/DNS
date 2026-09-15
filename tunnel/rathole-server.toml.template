@@ -1,0 +1,24 @@
+﻿# ==============================================================================
+# Rathole Server Configuration (Runs on Germany Server)
+# ==============================================================================
+[server]
+bind_addr = "0.0.0.0:2333"
+default_token = "__TUNNEL_TOKEN__"
+
+# Heartbeat timeout
+heartbeat_timeout = 40
+
+[server.transport]
+type = "tcp"
+[server.transport.tcp]
+nodelay = true
+
+# Service 1: HTTPS (Port 443 egress)
+[server.services.https]
+type = "tcp"
+bind_addr = "0.0.0.0:443"
+
+# Service 2: HTTP (Port 80 egress)
+[server.services.http]
+type = "tcp"
+bind_addr = "0.0.0.0:80"

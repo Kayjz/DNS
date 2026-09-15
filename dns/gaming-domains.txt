@@ -1,0 +1,130 @@
+﻿# ==============================================================================
+# GAMING DOMAINS FOR SMARTDNS & SNI PROXY
+# Purpose: Domains intercepted and routed through Germany.
+# Unlisted domains (and non-game traffic) resolve natively via upstream DNS.
+# ==============================================================================
+
+# PlayStation Network (PSN)
+playstation.com
+playstation.net
+playstationnetwork.com
+sonyentertainmentnetwork.com
+auth.api.sonyentertainmentnetwork.com
+auth.api.np.ac.playstation.net
+session-directory.api.playstation.com
+commerce.api.playstation.com
+gs-sec.ww.np.dl.playstation.net
+account.sonyentertainmentnetwork.com
+my.playstation.com
+store.playstation.com
+psn.playstation.com
+api.playstation.com
+apollo.dl.playstation.net
+tup-np-g1.dl.playstation.net
+np.community.playstation.net
+
+# Xbox Live & Microsoft Gaming
+xbox.com
+xboxlive.com
+xboxab.com
+xboxservices.com
+xsts.auth.xboxlive.com
+user.auth.xboxlive.com
+title.auth.xboxlive.com
+device.auth.xboxlive.com
+catalog.gamepass.com
+multiplayer.xboxlive.com
+party.xboxlive.com
+presence.xboxlive.com
+client-s.gateway.messenger.live.com
+licensing.xboxlive.com
+title.mgt.xboxlive.com
+
+# Electronic Arts (EA / Origin / Apex Legends / FC)
+ea.com
+origin.com
+api1.origin.com
+api2.origin.com
+api3.origin.com
+api4.origin.com
+signin.ea.com
+accounts.ea.com
+gateway.ea.com
+river.data.ea.com
+pin-river.data.ea.com
+utas.fut.ea.com
+fut-squad.ea.com
+apexlegends.com
+battlefield.com
+
+# Activision & Call of Duty
+activision.com
+callofduty.com
+profile.callofduty.com
+sso.callofduty.com
+atvi.com
+demonware.net
+uno.demonware.net
+prod.demonware.net
+auth.demonware.net
+lobby.uno.demonware.net
+cod-umbrella-gw.atvi.com
+
+# Blizzard Entertainment / Battle.net
+blizzard.com
+battle.net
+bnet.cc
+battle.net.edgesuite.net
+oauth.battle.net
+auth.battle.net
+us.battle.net
+eu.battle.net
+client01.battle.net
+client02.battle.net
+
+# Ubisoft & Ubisoft Connect
+ubisoft.com
+ubi.com
+uplay.com
+connect.ubisoft.com
+public-ubiservices.ubi.com
+api-ubiservices.ubi.com
+auth.ubisoft.com
+
+# Epic Games (Fortnite, Rocket League)
+epicgames.com
+unrealengine.com
+fortnite.com
+rocketleague.com
+ol.epicgames.com
+account-public-service-prod.ol.epicgames.com
+epicgames.org
+
+# Riot Games (Valorant, LoL)
+riotgames.com
+leagueoflegends.com
+playvalorant.com
+auth.riotgames.com
+authenticate.riotgames.com
+entitlements.auth.riotgames.com
+riot-access-token-public-service.riotgames.com
+playerpreferences.riotgames.com
+
+# Nintendo Switch Online
+nintendo.com
+nintendo.net
+nintendowifi.net
+accounts.nintendo.com
+api.accounts.nintendo.com
+ctest.cdn.nintendo.net
+aqua.hac.lp1.dauth.nintendo.net
+beach.hac.lp1.eshop.srv.nintendo.net
+
+# Discord
+discord.com
+discord.gg
+discordapp.com
+discordapp.net
+gateway.discord.gg
+status.discord.com
+latency.discord.media
