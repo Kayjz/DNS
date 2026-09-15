@@ -117,7 +117,7 @@ if ! command -v rathole &>/dev/null; then
     ARCH=$(uname -m)
     case "$ARCH" in
         x86_64) RAT_ARCH="x86_64-unknown-linux-gnu" ;;
-        aarch64) RAT_ARCH="aarch64-unknown-linux-gnu" ;;
+        aarch64) RAT_ARCH="aarch64-unknown-linux-musl" ;;
         *) echo -e "${RED}[ERROR] Architecture $ARCH not supported.${NC}"; exit 1 ;;
     esac
     
