@@ -282,10 +282,15 @@ EOF
 systemctl enable haproxy
 systemctl restart haproxy
 
+# Install smart-dns CLI management tool
+curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/scripts/smart-dns" -o /usr/local/bin/smart-dns
+chmod +x /usr/local/bin/smart-dns
+
 echo -e "\n${GREEN}================================================================${NC}"
 echo -e "${GREEN}  IRAN EDGE NODE DEPLOYED SUCCESSFULLY!                         ${NC}"
 echo -e "${GREEN}================================================================${NC}"
 echo -e "Primary DNS IP:    ${BOLD}${IRAN_IP}${NC}"
 echo -e "CoreDNS Status:    ${GREEN}Active (Port 53 UDP/TCP)${NC}"
 echo -e "HAProxy Forwarder: ${GREEN}Forwarding to ${GERMANY_IP}:8443${NC}"
+echo -e "Management CLI:    ${BOLD}smart-dns${NC} (Type 'smart-dns' in terminal)"
 echo -e "\nSet your Console DNS to: ${BOLD}${IRAN_IP}${NC} and start gaming!\n"
