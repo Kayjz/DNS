@@ -116,13 +116,13 @@ if ! command -v rathole &>/dev/null; then
     echo -e "${YELLOW}[*] Installing Rathole tunneling engine...${NC}"
     ARCH=$(uname -m)
     case "$ARCH" in
-        x86_64) RAT_ARCH="x86_64-unknown-linux-musl" ;;
-        aarch64) RAT_ARCH="aarch64-unknown-linux-musl" ;;
+        x86_64) RAT_ARCH="x86_64-unknown-linux-gnu" ;;
+        aarch64) RAT_ARCH="aarch64-unknown-linux-gnu" ;;
         *) echo -e "${RED}[ERROR] Architecture $ARCH not supported.${NC}"; exit 1 ;;
     esac
     
     mkdir -p /tmp/rathole_install
-    curl -fSL --retry 3 "https://github.com/rapiz1/rathole/releases/download/v0.5.0/rathole-${RAT_ARCH}.zip" -o /tmp/rathole_install/rathole.zip
+    curl -fSL --retry 3 "https://github.com/rathole-org/rathole/releases/download/v0.5.0/rathole-${RAT_ARCH}.zip" -o /tmp/rathole_install/rathole.zip
     unzip -qo /tmp/rathole_install/rathole.zip -d /tmp/rathole_install/
     mv /tmp/rathole_install/rathole /usr/local/bin/rathole
     chmod +x /usr/local/bin/rathole
