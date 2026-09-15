@@ -140,7 +140,7 @@ if [ "$ROLE" == "germany" ]; then
 [server]
 bind_addr = "0.0.0.0:2333"
 default_token = "${TOKEN}"
-heartbeat_timeout = 40
+heartbeat_interval = 20
 
 [server.transport]
 type = "tcp"
@@ -381,7 +381,7 @@ cat > /etc/rathole/client.toml << EOF
 [client]
 remote_addr = "${GERMANY_IP}:2333"
 default_token = "${TOKEN}"
-heartbeat_interval = 20
+heartbeat_timeout = 40
 
 [client.transport]
 type = "tcp"
