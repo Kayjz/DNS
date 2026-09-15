@@ -1,7 +1,6 @@
 ﻿#!/usr/bin/env bash
 # ==============================================================================
 # ALL-IN-ONE STANDALONE SMARTDNS & GAMING PROXY INSTALLER
-# Run with: curl -sSL https://raw.githubusercontent.com/Kayjz/DNS/main/install.sh | bash
 # ==============================================================================
 
 set -euo pipefail
@@ -24,6 +23,15 @@ echo "==========================================================================
 echo "          One-Click SmartDNS & Gaming Proxy Automated Installer                 "
 echo "================================================================================"
 echo -e "${NC}"
+
+# Ensure package manager dependencies exist first
+echo -e "${YELLOW}[*] Updating package index and ensuring base tools...${NC}"
+if command -v apt-get &>/dev/null; then
+    apt-get update -y >/dev/null 2>&1 || true
+    apt-get install -y curl unzip tar ca-certificates >/dev/null 2>&1 || true
+elif command -v yum &>/dev/null; then
+    yum install -y curl unzip tar ca-certificates >/dev/null 2>&1 || true
+fi
 
 # Parse parameters
 ROLE=""
@@ -112,13 +120,14 @@ if ! command -v rathole &>/dev/null; then
         aarch64) RAT_ARCH="aarch64-unknown-linux-musl" ;;
         *) echo -e "${RED}[ERROR] Architecture $ARCH not supported.${NC}"; exit 1 ;;
     esac
-    curl -sL "https://github.com/rapiz1/rathole/releases/download/v0.5.0/rathole-${RAT_ARCH}.zip" -o /tmp/rathole.zip
-    apt-get update -y >/dev/null 2>&1 || true
-    apt-get install -y unzip curl >/dev/null 2>&1 || yum install -y unzip curl >/dev/null 2>&1 || true
-    unzip -qo /tmp/rathole.zip -d /tmp/
-    mv /tmp/rathole /usr/local/bin/rathole
+    
+    mkdir -p /tmp/rathole_install
+    curl -fSL --retry 3 "https://github.com/rapiz1/rathole/releases/download/v0.5.0/rathole-${RAT_ARCH}.zip" -o /tmp/rathole_install/rathole.zip
+    unzip -qo /tmp/rathole_install/rathole.zip -d /tmp/rathole_install/
+    mv /tmp/rathole_install/rathole /usr/local/bin/rathole
     chmod +x /usr/local/bin/rathole
-    rm -rf /tmp/rathole*
+    rm -rf /tmp/rathole_install
+    echo -e "${GREEN}[+] Rathole installed successfully.${NC}"
 fi
 
 # ==============================================================================
@@ -172,7 +181,7 @@ EOF
     echo -e "${GREEN}================================================================${NC}"
     echo -e "Tunnel Port:  ${BOLD}2333${NC}"
     echo -e "Secret Token: ${BOLD}${TOKEN}${NC}"
-    echo -e "\nCopy this token to use on your Iran server setup.\n"
+    echo -e "\nCopy this token to use when configuring your Iran server.\n"
     exit 0
 fi
 
@@ -189,15 +198,19 @@ if systemctl is-active --quiet systemd-resolved; then
 fi
 
 # Install dependencies & CoreDNS
-apt-get update -y >/dev/null 2>&1 || true
-apt-get install -y haproxy dnsutils curl bc >/dev/null 2>&1 || yum install -y haproxy bind-utils curl bc >/dev/null 2>&1 || true
+if command -v apt-get &>/dev/null; then
+    apt-get install -y haproxy dnsutils bc >/dev/null 2>&1 || true
+elif command -v yum &>/dev/null; then
+    yum install -y haproxy bind-utils bc >/dev/null 2>&1 || true
+fi
 
 if ! command -v coredns &>/dev/null; then
     echo -e "${YELLOW}[*] Installing CoreDNS binary...${NC}"
-    curl -sL "https://github.com/coredns/coredns/releases/download/v1.11.1/coredns_1.11.1_linux_amd64.tgz" -o /tmp/coredns.tgz
+    curl -fSL --retry 3 "https://github.com/coredns/coredns/releases/download/v1.11.1/coredns_1.11.1_linux_amd64.tgz" -o /tmp/coredns.tgz
     tar -xzf /tmp/coredns.tgz -C /usr/local/bin/
     chmod +x /usr/local/bin/coredns
     rm -f /tmp/coredns.tgz
+    echo -e "${GREEN}[+] CoreDNS installed successfully.${NC}"
 fi
 
 # Write Gaming Domains & CoreDNS Split-Horizon Config
