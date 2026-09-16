@@ -173,8 +173,9 @@ EOF
     # Configure Admin Panel Web Server & SSL if requested
     if [ -n "$ADMIN_DOMAIN" ]; then
         echo -e "${YELLOW}[*] Requesting SSL certificate for ${ADMIN_DOMAIN}...${NC}"
-        mkdir -p /var/www/certbot
-        certbot certonly --standalone -d "$ADMIN_DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>/dev/null || true
+        # Use Nginx plugin for seamless zero-downtime certificate acquisition
+        certbot certonly --nginx -d "$ADMIN_DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>/dev/null || \
+            certbot certonly --standalone -d "$ADMIN_DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>/dev/null || true
 
         mkdir -p /etc/nginx/conf.d
         if [ -d "/etc/letsencrypt/live/${ADMIN_DOMAIN}" ]; then
