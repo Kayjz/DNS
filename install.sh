@@ -38,9 +38,14 @@ detect_state() {
 
 get_public_ip() {
     local IP=""
-    IP=$(curl -s4 --max-time 3 https://api.ipify.org || true)
+    if [ -f "/etc/coredns/gaming_rewrites.conf" ]; then
+        IP=$(grep -oP '(?<=hosts \{[\r\n\s]{1,100})\d+(\.\d+){3}' /etc/coredns/gaming_rewrites.conf 2>/dev/null | head -n1 || true)
+    fi
     if [ -z "$IP" ]; then
-        IP=$(curl -s4 --max-time 3 https://ifconfig.me || true)
+        IP=$(curl -s4 --max-time 3 https://api.ipify.org 2>/dev/null || true)
+    fi
+    if [ -z "$IP" ]; then
+        IP=$(curl -s4 --max-time 3 https://ifconfig.me 2>/dev/null || true)
     fi
     if [ -z "$IP" ]; then
         IP=$(ip -4 addr show eth0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -n1 || echo "127.0.0.1")
