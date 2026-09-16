@@ -1,0 +1,29 @@
+﻿version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smartdns_backend
+    restart: always
+    network_mode: "host"
+    environment:
+      - PORT=5000
+      - DATABASE_URL=file:./data/prod.db
+      - JWT_SECRET=SMARTDNS_COMMERCIAL_PROD_SECRET_2026
+    volumes:
+      - ./backend/data:/app/data
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smartdns_frontend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    depends_on:
+      - backend

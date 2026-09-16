@@ -1,0 +1,72 @@
+﻿datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String         @id @default(uuid())
+  username      String         @unique
+  phoneOrEmail  String         @unique
+  passwordHash  String
+  role          String         @default("CUSTOMER") // "CUSTOMER" or "ADMIN"
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  subscription  Subscription?
+  receipts      Receipt[]
+}
+
+model Plan {
+  id            String         @id @default(uuid())
+  name          String
+  durationDays  Int
+  priceToman    Int
+  description   String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+
+  subscriptions Subscription[]
+  receipts      Receipt[]
+}
+
+model Subscription {
+  id            String         @id @default(uuid())
+  userId        String         @unique
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId        String?
+  plan          Plan?          @relation(fields: [planId], references: [id])
+  status        String         @default("ACTIVE") // "ACTIVE", "EXPIRED", "SUSPENDED"
+  activeClientIp String?
+  lastIpSyncAt  DateTime?
+  startsAt      DateTime       @default(now())
+  expiresAt     DateTime
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Receipt {
+  id             String        @id @default(uuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId         String
+  plan           Plan          @relation(fields: [planId], references: [id])
+  cardLastDigits String?
+  trackingRef    String?
+  receiptImage   String?       // Base64 or uploaded URL
+  status         String        @default("PENDING") // "PENDING", "APPROVED", "REJECTED"
+  adminNote      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model ManagedDomain {
+  id            String         @id @default(uuid())
+  domain        String         @unique
+  category      String         // "PSN", "Xbox", "EA", "Epic", "Activision", "Custom"
+  isProxied     Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+}
