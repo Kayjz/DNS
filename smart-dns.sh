@@ -593,6 +593,41 @@ uninstall_smartdns() {
     exit 0
 }
 
+deploy_web_panel() {
+    print_banner
+    echo -e "${CYAN}${BOLD}--- Deploying Commercial Web Management Panel ---${NC}\n"
+    
+    # Check if Docker and Docker Compose are installed
+    if ! command -v docker &>/dev/null; then
+        echo -e "${YELLOW}[*] Installing Docker and Docker Compose...${NC}"
+        curl -fsSL https://get.docker.com | bash >/dev/null 2>&1 || true
+        systemctl enable docker
+        systemctl restart docker
+    fi
+
+    # Clone or update panel code
+    PANEL_DIR="/opt/smartdns-panel"
+    mkdir -p "$PANEL_DIR"
+    echo -e "${YELLOW}[*] Downloading panel configuration...${NC}"
+    curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/docker-compose.yml" -o "${PANEL_DIR}/docker-compose.yml"
+    
+    # Run docker-compose up
+    cd "$PANEL_DIR"
+    echo -e "${YELLOW}[*] Starting Web Panel containers on port 3000 & 5000...${NC}"
+    docker compose up -d 2>/dev/null || docker-compose up -d 2>/dev/null || true
+
+    LOCAL_IP=$(get_public_ip)
+    echo -e "\n${GREEN}================================================================${NC}"
+    echo -e "${GREEN}  ??? COMMERCIAL WEB PANEL DEPLOYED SUCCESSFULLY!                 ${NC}"
+    echo -e "${GREEN}================================================================${NC}"
+    echo -e "Customer Portal:   ${BOLD}http://${LOCAL_IP}:3000${NC}"
+    echo -e "Admin Portal:      ${BOLD}http://${LOCAL_IP}:3000/admin${NC}"
+    echo -e "Backend API:       ${BOLD}http://${LOCAL_IP}:5000${NC}"
+    echo -e "----------------------------------------------------------------"
+    echo -e "Note: The first user you register at /login automatically becomes ADMIN!\n"
+    read -rp "Press Enter to return to menu..."
+}
+
 # ==============================================================================
 # MAIN INTERACTIVE MENU
 # ==============================================================================
@@ -613,11 +648,12 @@ main_menu() {
             echo "  5) Change Kharej Bridge IP / Port"
             echo "  6) Run Diagnostics & Self-Test"
             echo "  7) Restart Services"
-            echo "  8) Reinstall / Switch Server Role"
-            echo "  9) Completely Uninstall SmartDNS"
+            echo "  8) Deploy / Start Commercial Web Panel (Port 3000)"
+            echo "  9) Reinstall / Switch Server Role"
+            echo " 10) Completely Uninstall SmartDNS"
             echo "  0) Exit"
             echo ""
-            read -rp "Enter option [0-9]: " OPT
+            read -rp "Enter option [0-10]: " OPT
             case "$OPT" in
                 1) check_status ;;
                 2) show_clients ;;
@@ -626,8 +662,9 @@ main_menu() {
                 5) change_kharej_ip ;;
                 6) run_diagnostics ;;
                 7) restart_services ;;
-                8) install_iran_wizard ;;
-                9) uninstall_smartdns ;;
+                8) deploy_web_panel ;;
+                9) install_iran_wizard ;;
+                10) uninstall_smartdns ;;
                 0) clear; exit 0 ;;
                 *) echo -e "${RED}Invalid option.${NC}"; sleep 1 ;;
             esac
