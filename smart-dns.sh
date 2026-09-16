@@ -224,17 +224,37 @@ server {
 EOF
         fi
 
-        # Deploy Admin Backend & Frontend containers
-        if ! command -v docker &>/dev/null; then
-            echo -e "${YELLOW}[*] Installing Docker engine...${NC}"
-            curl -fsSL https://get.docker.com | bash >/dev/null 2>&1 || true
-            systemctl enable docker && systemctl restart docker
+        # Install Node.js if missing
+        if ! command -v node &>/dev/null; then
+            echo -e "${YELLOW}[*] Installing Node.js runtime...${NC}"
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash - >/dev/null 2>&1 || true
+            apt-get install -y nodejs >/dev/null 2>&1 || true
         fi
 
         mkdir -p /opt/smartdns-admin
-        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/docker-compose.yml" -o /opt/smartdns-admin/docker-compose.yml
-        cd /opt/smartdns-admin
-        docker compose up -d 2>/dev/null || docker-compose up -d 2>/dev/null || true
+        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/admin-server.js" -o /opt/smartdns-admin/admin-server.js
+
+        # Setup systemd service for Admin Portal
+        cat > /etc/systemd/system/smartdns-admin.service << SVC
+[Unit]
+Description=SmartDNS Master Admin Portal
+After=network.target
+
+[Service]
+Type=simple
+Environment=ADMIN_PASSWORD="${ADMIN_PASS}"
+WorkingDirectory=/opt/smartdns-admin
+ExecStart=/usr/bin/node /opt/smartdns-admin/admin-server.js
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+SVC
+
+        systemctl daemon-reload
+        systemctl enable smartdns-admin
+        systemctl restart smartdns-admin
     fi
 
     systemctl enable nginx
