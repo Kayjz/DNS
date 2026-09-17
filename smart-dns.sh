@@ -173,15 +173,41 @@ EOF
     # Configure Admin Panel Web Server & SSL if requested
     if [ -n "$ADMIN_DOMAIN" ]; then
         echo -e "${YELLOW}[*] Requesting SSL certificate for ${ADMIN_DOMAIN}...${NC}"
-        # Use Nginx plugin for seamless zero-downtime certificate acquisition
+        mkdir -p /var/www/html /etc/nginx/conf.d
+        cat > "/etc/nginx/conf.d/admin_panel.conf" << EOF
+server {
+    listen 80;
+    server_name ${ADMIN_DOMAIN};
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://\$host:${ADMIN_PORT}\$request_uri;
+    }
+}
+EOF
+        systemctl restart nginx 2>/dev/null || true
+
+        # Use Nginx or standalone for cert acquisition
         certbot certonly --nginx -d "$ADMIN_DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>/dev/null || \
             certbot certonly --standalone -d "$ADMIN_DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>/dev/null || true
 
-        mkdir -p /etc/nginx/conf.d
         if [ -d "/etc/letsencrypt/live/${ADMIN_DOMAIN}" ]; then
             cat > "/etc/nginx/conf.d/admin_panel.conf" << EOF
 server {
-    listen ${ADMIN_PORT} ssl http2;
+    listen 80;
+    server_name ${ADMIN_DOMAIN};
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://\$host:${ADMIN_PORT}\$request_uri;
+    }
+}
+
+server {
+    listen ${ADMIN_PORT} ssl;
+    http2 on;
     server_name ${ADMIN_DOMAIN};
 
     ssl_certificate /etc/letsencrypt/live/${ADMIN_DOMAIN}/fullchain.pem;
@@ -193,13 +219,6 @@ server {
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:5000/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
 }
 EOF
@@ -215,17 +234,12 @@ server {
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
     }
-    location /api/ {
-        proxy_pass http://127.0.0.1:5000/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-    }
 }
 EOF
         fi
 
         mkdir -p /opt/smartdns-admin
-        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/admin_server.py" -o /opt/smartdns-admin/admin_server.py
+        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/admin_server.py?v=$(date +%s)" -o /opt/smartdns-admin/admin_server.py
         chmod +x /opt/smartdns-admin/admin_server.py
 
         # Setup systemd service for Admin Portal (Python 3)
@@ -313,7 +327,10 @@ install_iran_wizard() {
     killall apt apt-get unattended-upgr >/dev/null 2>&1 || true
 
     apt-get update -y >/dev/null 2>&1 || true
-    apt-get install -y haproxy curl dnsutils tar python3 iptables certbot >/dev/null 2>&1 || true
+    apt-get install -y haproxy nginx certbot python3-certbot-nginx curl dnsutils tar python3 iptables ipset >/dev/null 2>&1 || true
+    systemctl stop apache2 >/dev/null 2>&1 || true
+    systemctl disable apache2 >/dev/null 2>&1 || true
+    rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 
     echo -e "${YELLOW}[3/5] Applying TCP BBR & socket optimizations...${NC}"
     apply_kernel_optimizations
@@ -400,8 +417,130 @@ EOF
     systemctl enable coredns
     systemctl restart coredns
 
-    echo -e "${YELLOW}[5/5] Configuring HAProxy SNI forwarder to ${KHAREJ_IP}:${KHAREJ_PORT}...${NC}"
-    cat > /etc/haproxy/haproxy.cfg << EOF
+    echo -e "${YELLOW}[5/5] Configuring HAProxy SNI forwarder & Customer Portal...${NC}"
+    mkdir -p /etc/haproxy
+
+    if [ -n "$CUSTOMER_DOMAIN" ]; then
+        echo -e "${YELLOW}[*] Configuring SSL Certificate & Reverse Proxy for ${CUSTOMER_DOMAIN}...${NC}"
+        mkdir -p /var/www/html /etc/nginx/conf.d
+
+        cat > /etc/nginx/conf.d/customer_portal.conf << EOF
+server {
+    listen 80;
+    server_name ${CUSTOMER_DOMAIN};
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+EOF
+        systemctl restart nginx 2>/dev/null || true
+
+        # Request SSL certificate
+        certbot certonly --nginx -d "$CUSTOMER_DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>/dev/null || \
+            certbot certonly --standalone -d "$CUSTOMER_DOMAIN" --non-interactive --agree-tos --register-unsafely-without-email 2>/dev/null || true
+
+        if [ -d "/etc/letsencrypt/live/${CUSTOMER_DOMAIN}" ]; then
+            cat > /etc/nginx/conf.d/customer_portal.conf << EOF
+server {
+    listen 80;
+    server_name ${CUSTOMER_DOMAIN};
+    location /.well-known/acme-challenge/ {
+        root /var/www/html;
+    }
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+server {
+    listen 127.0.0.1:8443 ssl;
+    http2 on;
+    server_name ${CUSTOMER_DOMAIN};
+
+    ssl_certificate /etc/letsencrypt/live/${CUSTOMER_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${CUSTOMER_DOMAIN}/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+    }
+}
+EOF
+            systemctl restart nginx 2>/dev/null || true
+        fi
+
+        # HAProxy SNI multiplexer: Customer Portal SNI -> local Nginx, Gaming SNI -> Kharej
+        cat > /etc/haproxy/haproxy.cfg << EOF
+global
+    log /dev/log local0
+    user haproxy
+    group haproxy
+    daemon
+    maxconn 65535
+
+defaults
+    mode tcp
+    timeout connect 5s
+    timeout client 50s
+    timeout server 50s
+
+frontend sni_in
+    bind 0.0.0.0:443
+    mode tcp
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req_ssl_hello_type 1 }
+
+    # Customer Web Portal Route
+    use_backend backend_customer if { req_ssl_sni -i ${CUSTOMER_DOMAIN} }
+
+    # Transparent Gaming Egress Route
+    default_backend backend_kharej
+
+backend backend_customer
+    mode tcp
+    server local_nginx 127.0.0.1:8443 check
+
+backend backend_kharej
+    mode tcp
+    server kharej_gateway ${KHAREJ_IP}:${KHAREJ_PORT} check inter 3000
+EOF
+
+        # Deploy Python Customer Service
+        mkdir -p /opt/smartdns-customer
+        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/customer_server.py?v=$(date +%s)" -o /opt/smartdns-customer/customer_server.py
+        chmod +x /opt/smartdns-customer/customer_server.py
+
+        cat > /etc/systemd/system/smartdns-customer.service << SVC
+[Unit]
+Description=SmartDNS Customer Web Portal
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/smartdns-customer
+Environment="PRIMARY_DNS=${IRAN_IP}"
+Environment="KHAREJ_API=http://${KHAREJ_IP}:9443"
+ExecStart=/usr/bin/python3 /opt/smartdns-customer/customer_server.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+SVC
+
+        systemctl daemon-reload
+        systemctl enable smartdns-customer
+        systemctl restart smartdns-customer
+
+    else
+        cat > /etc/haproxy/haproxy.cfg << EOF
 global
     log /dev/log local0
     user haproxy
@@ -426,23 +565,10 @@ backend backend_kharej
     mode tcp
     server kharej_gateway ${KHAREJ_IP}:${KHAREJ_PORT} check inter 3000
 EOF
+    fi
 
     systemctl enable haproxy
     systemctl restart haproxy
-
-    # Customer Web Portal Deployment
-    if [ -n "$CUSTOMER_DOMAIN" ]; then
-        echo -e "${YELLOW}[*] Deploying Customer Portal on port 3000...${NC}"
-        if ! command -v docker &>/dev/null; then
-            curl -fsSL https://get.docker.com | bash >/dev/null 2>&1 || true
-            systemctl enable docker && systemctl restart docker
-        fi
-
-        mkdir -p /opt/smartdns-customer
-        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/docker-compose.yml" -o /opt/smartdns-customer/docker-compose.yml
-        cd /opt/smartdns-customer
-        docker compose up -d 2>/dev/null || docker-compose up -d 2>/dev/null || true
-    fi
 
     register_cli_command
 
@@ -453,7 +579,7 @@ EOF
     echo -e "CoreDNS Status:      ${GREEN}Active (Port 53 UDP/TCP)${NC}"
     echo -e "HAProxy Forwarder:   ${GREEN}Forwarding to ${KHAREJ_IP}:${KHAREJ_PORT}${NC}"
     if [ -n "$CUSTOMER_DOMAIN" ]; then
-        echo -e "Customer Portal:     ${BOLD}http://${CUSTOMER_DOMAIN}:3000${NC} (or http://${IRAN_IP}:3000)"
+        echo -e "Customer Portal:     ${BOLD}https://${CUSTOMER_DOMAIN}${NC} (Standard HTTPS Port 443 with SSL)"
     fi
     echo -e "Management Command:  Type ${CYAN}smart-dns${NC} anytime to open the menu"
     echo -e "----------------------------------------------------------------"
@@ -474,6 +600,9 @@ check_status() {
     if [ "$CURRENT_ROLE" == "iran" ]; then
         systemctl is-active --quiet coredns && echo -e "CoreDNS Service:        ${GREEN}[ACTIVE] (Port 53 listening)${NC}" || echo -e "CoreDNS Service:        ${RED}[FAILED]${NC}"
         systemctl is-active --quiet haproxy && echo -e "HAProxy Forwarder:      ${GREEN}[ACTIVE] (Port 443 listening)${NC}" || echo -e "HAProxy Forwarder:      ${RED}[FAILED]${NC}"
+        if systemctl is-active --quiet smartdns-customer; then
+            echo -e "Customer Web Portal:    ${GREEN}[ACTIVE] (Port 443 HTTPS)${NC}"
+        fi
 
         KHAREJ_TARGET=$(grep -oP '(?<=server kharej_gateway )[\d.]+' /etc/haproxy/haproxy.cfg 2>/dev/null || echo "")
         if [ -n "$KHAREJ_TARGET" ]; then
@@ -482,7 +611,9 @@ check_status() {
         fi
     elif [ "$CURRENT_ROLE" == "kharej" ]; then
         systemctl is-active --quiet nginx && echo -e "Nginx SNI Egress:       ${GREEN}[ACTIVE] (Stream Gateway listening)${NC}" || echo -e "Nginx SNI Egress:       ${RED}[FAILED]${NC}"
-        if [ -f "/etc/nginx/conf.d/admin_panel.conf" ]; then
+        if systemctl is-active --quiet smartdns-admin; then
+            echo -e "Admin Web Portal:       ${GREEN}[ACTIVE] (Master Admin Portal)${NC}"
+        elif [ -f "/etc/nginx/conf.d/admin_panel.conf" ]; then
             echo -e "Admin Web Portal:       ${GREEN}[CONFIGURED]${NC}"
         fi
     fi
@@ -591,8 +722,14 @@ restart_services() {
     print_banner
     echo -e "${YELLOW}[*] Restarting services...${NC}"
     CURRENT_ROLE=$(detect_state)
-    [ "$CURRENT_ROLE" == "iran" ] && systemctl restart coredns haproxy && echo -e "${GREEN}[+] CoreDNS & HAProxy restarted!${NC}"
-    [ "$CURRENT_ROLE" == "kharej" ] && systemctl restart nginx && echo -e "${GREEN}[+] Nginx restarted!${NC}"
+    if [ "$CURRENT_ROLE" == "iran" ]; then
+        systemctl restart coredns haproxy 2>/dev/null || true
+        systemctl restart nginx smartdns-customer 2>/dev/null || true
+        echo -e "${GREEN}[+] CoreDNS, HAProxy, Nginx & Customer Portal restarted!${NC}"
+    elif [ "$CURRENT_ROLE" == "kharej" ]; then
+        systemctl restart nginx smartdns-admin 2>/dev/null || true
+        echo -e "${GREEN}[+] Nginx & Master Admin Portal restarted!${NC}"
+    fi
     sleep 2
 }
 
@@ -606,16 +743,17 @@ uninstall_smartdns() {
 
     CURRENT_ROLE=$(detect_state)
     if [ "$CURRENT_ROLE" == "iran" ]; then
-        systemctl stop coredns haproxy 2>/dev/null || true
-        systemctl disable coredns haproxy 2>/dev/null || true
-        rm -f /etc/systemd/system/coredns.service
-        rm -rf /usr/local/bin/coredns /etc/coredns /etc/haproxy /opt/smartdns-customer
+        systemctl stop coredns haproxy smartdns-customer nginx 2>/dev/null || true
+        systemctl disable coredns haproxy smartdns-customer 2>/dev/null || true
+        rm -f /etc/systemd/system/coredns.service /etc/systemd/system/smartdns-customer.service
+        rm -rf /usr/local/bin/coredns /etc/coredns /etc/haproxy /opt/smartdns-customer /etc/nginx/conf.d/customer_portal.conf
         apt-get purge -y haproxy 2>/dev/null || true
         sed -i 's/DNSStubListener=no/#DNSStubListener=yes/' /etc/systemd/resolved.conf 2>/dev/null || true
         systemctl restart systemd-resolved 2>/dev/null || true
     elif [ "$CURRENT_ROLE" == "kharej" ]; then
-        systemctl stop nginx 2>/dev/null || true
-        systemctl disable nginx 2>/dev/null || true
+        systemctl stop nginx smartdns-admin 2>/dev/null || true
+        systemctl disable nginx smartdns-admin 2>/dev/null || true
+        rm -f /etc/systemd/system/smartdns-admin.service
         rm -rf /etc/nginx /opt/smartdns-admin
         apt-get purge -y nginx nginx-common libnginx-mod-stream 2>/dev/null || true
     fi
