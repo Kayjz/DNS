@@ -4,6 +4,7 @@ import socketserver
 import json
 import os
 import urllib.parse
+import urllib.request
 import time
 import secrets
 import subprocess
@@ -85,6 +86,19 @@ HTML_PAGE = """<!DOCTYPE html>
                 <button onclick="closeModal()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-xs font-semibold transition">Cancel</button>
                 <button id="modalConfirmBtn" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold transition">Confirm</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Receipt Image Screenshot Viewer Modal -->
+    <div id="imageModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-md flex items-center justify-center p-4" onclick="closeImageModal()">
+        <div class="relative max-w-2xl max-h-[90vh] p-3 glass-panel rounded-3xl border border-gray-700 shadow-2xl overflow-hidden flex flex-col items-center" onclick="event.stopPropagation()">
+            <div class="w-full flex justify-between items-center pb-3 border-b border-gray-800 text-xs">
+                <span id="imageModalTitle" class="font-bold text-white">Payment Receipt Screenshot</span>
+                <button onclick="closeImageModal()" class="p-1 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <img id="imageModalSrc" src="" class="max-h-[75vh] w-auto rounded-2xl object-contain mt-3 shadow-lg" alt="Payment Receipt Screenshot">
         </div>
     </div>
 
@@ -262,6 +276,7 @@ HTML_PAGE = """<!DOCTYPE html>
                                 <th class="p-4">Contact / Phone</th>
                                 <th class="p-4">Plan Name</th>
                                 <th class="p-4">Authorized Home IP</th>
+                                <th class="p-4">Data Quota</th>
                                 <th class="p-4">Status</th>
                                 <th class="p-4">Expires At</th>
                                 <th class="p-4 text-right">Actions</th>
@@ -433,13 +448,22 @@ HTML_PAGE = """<!DOCTYPE html>
                         </div>
                         <div class="p-3 bg-gray-900/90 rounded-xl space-y-1 text-xs">
                             <div class="flex justify-between text-gray-400"><span>Plan:</span><span class="text-white font-medium">${escapeHtml(r.planName)}</span></div>
+                            <div class="flex justify-between text-gray-400"><span>Data Quota:</span><span class="text-indigo-400 font-mono font-bold">${Number(r.quotaGb || 50)} GB</span></div>
                             <div class="flex justify-between text-gray-400"><span>Amount:</span><span class="text-emerald-400 font-mono font-bold">${Number(r.price || 0).toLocaleString()} T</span></div>
                             <div class="flex justify-between text-gray-400"><span>Tracking Ref:</span><span class="text-cyan-400 font-mono font-bold">${escapeHtml(r.refNumber || 'N/A')}</span></div>
-                            <div class="flex justify-between text-gray-400"><span>Client IP:</span><span class="text-gray-300 font-mono">${escapeHtml(r.ip || 'Pending sync')}</span></div>
+                            <div class="flex justify-between text-gray-400"><span>Client IP:</span><span class="text-blue-400 font-mono font-bold">${escapeHtml(r.ip || '5.121.178.165')}</span></div>
                         </div>
+
+                        ${r.imageBase64 ? `
+                            <button onclick="viewReceiptImage('${r.id}')" class="w-full py-2 px-3 bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-400 border border-indigo-500/30 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                <span>View Payment Screenshot</span>
+                            </button>
+                        ` : ''}
+
                         <div class="flex gap-2 pt-1">
                             <button onclick="approveReceipt('${r.id}')" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold transition">
-                                ? Approve Pass
+                                ? Approve &amp; Whitelist
                             </button>
                             <button onclick="rejectReceipt('${r.id}')" class="px-4 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold transition">
                                 ? Reject
@@ -456,7 +480,7 @@ HTML_PAGE = """<!DOCTYPE html>
         function renderSubscribersTable(users) {
             const tbody = document.getElementById('subscribersTableBody');
             if (!users || users.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-gray-500 text-xs">No registered subscribers yet.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="p-8 text-center text-gray-500 text-xs">No registered subscribers yet.</td></tr>`;
                 return;
             }
             tbody.innerHTML = users.map(u => {
@@ -467,6 +491,7 @@ HTML_PAGE = """<!DOCTYPE html>
                         <td class="p-4 text-gray-400 font-mono">${escapeHtml(u.phone || '-')}</td>
                         <td class="p-4 text-gray-300 font-medium">${escapeHtml(u.planName || 'Custom')}</td>
                         <td class="p-4 font-mono ${u.ip ? 'text-cyan-400' : 'text-gray-500'}">${escapeHtml(u.ip || 'Not synced')}</td>
+                        <td class="p-4 font-mono text-gray-300 font-bold">${Number(u.usedGb || 0).toFixed(1)} / ${Number(u.totalGb || 50).toFixed(1)} GB</td>
                         <td class="p-4">
                             ${isExpired ? 
                                 `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">Expired</span>` :
@@ -474,9 +499,10 @@ HTML_PAGE = """<!DOCTYPE html>
                             }
                         </td>
                         <td class="p-4 font-mono text-gray-400">${new Date(u.expiresAt).toLocaleDateString()}</td>
-                        <td class="p-4 text-right space-x-2">
-                            <button onclick="extendSubscriber('${u.id}', 30)" class="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-[11px] font-medium transition">+30d</button>
-                            <button onclick="deleteSubscriber('${u.id}')" class="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-[11px] font-medium transition">Delete</button>
+                        <td class="p-4 text-right space-x-1.5">
+                            <button onclick="addSubscriberQuota('${u.id}', 10)" class="px-2 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-lg text-[11px] font-medium transition">+10GB</button>
+                            <button onclick="extendSubscriber('${u.id}', 30)" class="px-2 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 rounded-lg text-[11px] font-medium transition">+30d</button>
+                            <button onclick="deleteSubscriber('${u.id}')" class="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-[11px] font-medium transition">Delete</button>
                         </td>
                     </tr>
                 `;
@@ -555,6 +581,39 @@ HTML_PAGE = """<!DOCTYPE html>
                 }
             } catch (e) {
                 showToast("Failed to extend.", "error");
+            }
+        }
+
+        function viewReceiptImage(id) {
+            const receipt = (cachedData.receipts || []).find(r => r.id === id);
+            if (receipt && receipt.imageBase64) {
+                document.getElementById('imageModalTitle').innerText = `Receipt Screenshot: ${receipt.username} (${receipt.refNumber})`;
+                document.getElementById('imageModalSrc').src = receipt.imageBase64;
+                document.getElementById('imageModal').classList.remove('hidden');
+            } else {
+                showToast("No screenshot attached to this receipt.", "info");
+            }
+        }
+
+        function closeImageModal() {
+            document.getElementById('imageModal').classList.add('hidden');
+        }
+
+        async function addSubscriberQuota(id, gb) {
+            try {
+                const res = await fetch(`/api/admin/users/${id}/add-quota`, {
+                    method: 'POST',
+                    headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ gb })
+                });
+                if (res.ok) {
+                    showToast(`Added +${gb} GB data quota!`, "success");
+                    loadData();
+                } else {
+                    showToast("Failed to add quota.", "error");
+                }
+            } catch (e) {
+                showToast("Network error.", "error");
             }
         }
 
@@ -799,15 +858,17 @@ class FastAdminHandler(http.server.BaseHTTPRequestHandler):
                 username = receipt.get("username")
                 duration = int(receipt.get("durationDays", 30))
                 ip = receipt.get("ip", "")
+                quota_gb = int(receipt.get("quotaGb", 50))
 
                 user = next((u for u in db.get("users", []) if u.get("username") == username), None)
                 expires = time.time() + (duration * 86400)
                 if user:
-                    # Extend
+                    # Extend existing user
                     curr = user.get("expiresTimestamp", time.time())
                     base = max(curr, time.time())
                     user["expiresTimestamp"] = base + (duration * 86400)
                     user["expiresAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(user["expiresTimestamp"]))
+                    user["totalGb"] = user.get("totalGb", 0) + quota_gb
                     if ip: user["ip"] = ip
                 else:
                     db.setdefault("users", []).append({
@@ -816,10 +877,34 @@ class FastAdminHandler(http.server.BaseHTTPRequestHandler):
                         "phone": receipt.get("phone", ""),
                         "planName": receipt.get("planName", "Standard Pass"),
                         "ip": ip,
+                        "totalGb": quota_gb,
+                        "usedGb": 0,
                         "expiresTimestamp": expires,
                         "expiresAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(expires))
                     })
                 save_db(db)
+
+                # Forward activation to Iran customer server
+                iran_api = db.get("iranApiUrl", "")
+                if iran_api:
+                    try:
+                        fwd_data = json.dumps({
+                            "username": username,
+                            "phone": receipt.get("phone", ""),
+                            "planName": receipt.get("planName", "Standard Pass"),
+                            "durationDays": duration,
+                            "quotaGb": quota_gb,
+                            "ip": ip
+                        }).encode("utf-8")
+                        fwd_req = urllib.request.Request(
+                            f"{iran_api}/api/admin/activate-user",
+                            data=fwd_data,
+                            headers={"Content-Type": "application/json"}
+                        )
+                        urllib.request.urlopen(fwd_req, timeout=5)
+                    except Exception:
+                        pass  # Non-fatal — admin DB still updated
+
                 self.send_json(200, {"success": True})
                 return
             self.send_json(404, {"error": "Receipt not found"})
@@ -847,6 +932,18 @@ class FastAdminHandler(http.server.BaseHTTPRequestHandler):
                 user["expiresAt"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(user["expiresTimestamp"]))
                 save_db(db)
                 self.send_json(200, {"success": True})
+                return
+            self.send_json(404, {"error": "User not found"})
+            return
+
+        if path.startswith("/api/admin/users/") and path.endswith("/add-quota"):
+            uid = path.split("/")[4]
+            user = next((u for u in db.get("users", []) if u.get("id") == uid), None)
+            if user:
+                gb = int(req.get("gb", 10))
+                user["totalGb"] = user.get("totalGb", 0) + gb
+                save_db(db)
+                self.send_json(200, {"success": True, "totalGb": user["totalGb"]})
                 return
             self.send_json(404, {"error": "User not found"})
             return
