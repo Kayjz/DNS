@@ -526,7 +526,7 @@ Type=simple
 User=root
 WorkingDirectory=/opt/smartdns-customer
 Environment="PRIMARY_DNS=${IRAN_IP}"
-Environment="KHAREJ_API=http://${KHAREJ_IP}:9443"
+Environment="KHAREJ_API=https://${KHAREJ_IP}:9443"
 ExecStart=/usr/bin/python3 /opt/smartdns-customer/customer_server.py
 Restart=always
 RestartSec=2

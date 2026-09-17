@@ -5,6 +5,7 @@ import json
 import os
 import urllib.parse
 import urllib.request
+import ssl
 import subprocess
 import time
 import secrets
@@ -801,6 +802,11 @@ class FastCustomerHandler(http.server.BaseHTTPRequestHandler):
                 self.send_json(200, {"found": False})
             return
 
+        if path == "/api/admin/receipts":
+            db = load_customer_db()
+            self.send_json(200, {"receipts": db.get("receipts", [])})
+            return
+
         self.send_json(404, {"error": "Not Found"})
 
     def do_POST(self):
@@ -878,16 +884,32 @@ class FastCustomerHandler(http.server.BaseHTTPRequestHandler):
             save_customer_db(db)
 
             # Forward receipt to Kharej Master Admin API
-            if KHAREJ_API and "127.0.0.1" not in KHAREJ_API:
+            kharej_url = db.get("kharejApiUrl") or os.environ.get("KHAREJ_API", "")
+            if kharej_url and "127.0.0.1" not in kharej_url:
                 try:
-                    fwd_url = f"{KHAREJ_API}/api/customer/receipt"
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    fwd_url = f"{kharej_url}/api/customer/receipt"
                     fwd_data = json.dumps(receipt).encode("utf-8")
                     fwd_req = urllib.request.Request(fwd_url, data=fwd_data, headers={"Content-Type": "application/json"})
-                    urllib.request.urlopen(fwd_req, timeout=4)
-                except Exception:
-                    pass
+                    urllib.request.urlopen(fwd_req, timeout=5, context=ctx)
+                except Exception as e:
+                    print(f"[*] Note: Push to Kharej API ({kharej_url}) postponed: {e}")
 
             self.send_json(200, {"success": True, "receiptId": receipt["id"]})
+            return
+
+        if path.startswith("/api/admin/receipts/") and path.endswith("/status"):
+            rec_id = path.split("/")[4]
+            new_status = req.get("status", "APPROVED")
+            db = load_customer_db()
+            for r in db.get("receipts", []):
+                if r.get("id") == rec_id:
+                    r["status"] = new_status
+                    break
+            save_customer_db(db)
+            self.send_json(200, {"success": True})
             return
 
         # Direct activation endpoint for when Admin approves

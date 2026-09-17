@@ -5,6 +5,7 @@ import json
 import os
 import urllib.parse
 import urllib.request
+import ssl
 import time
 import secrets
 import subprocess
@@ -169,20 +170,28 @@ HTML_PAGE = """<!DOCTYPE html>
                             <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                             Kharej Egress Active
                         </span>
+                        <button onclick="promptSetIranUrl()" title="Click to change Iran server URL" class="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-gray-900/90 text-gray-300 border border-gray-700/60 hover:border-indigo-500/60 flex items-center gap-1.5 transition">
+                            <span id="iranStatusDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <span id="iranStatusText">Iran Node</span>
+                        </button>
                     </div>
                     <p class="text-xs text-gray-400 mt-0.5">Automated Receipt Approvals, Whitelist Daemon & Domain Interception</p>
                 </div>
             </div>
 
-            <div class="flex items-center gap-3">
-                <button onclick="refreshData()" class="px-3.5 py-2 glass-panel hover:bg-gray-800/80 text-gray-300 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+            <div class="flex items-center gap-2.5">
+                <button onclick="syncIranServer()" id="btnSyncIran" class="px-3 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+                    <svg id="syncIranIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    <span>Sync from Iran</span>
+                </button>
+                <button onclick="refreshData()" class="px-3 py-2 glass-panel hover:bg-gray-800/80 text-gray-300 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
                     <svg id="refreshIcon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     Refresh
                 </button>
-                <button onclick="openChangePassModal()" class="px-3.5 py-2 glass-panel hover:bg-gray-800/80 text-gray-300 rounded-xl text-xs font-semibold transition">
+                <button onclick="openChangePassModal()" class="px-3 py-2 glass-panel hover:bg-gray-800/80 text-gray-300 rounded-xl text-xs font-semibold transition">
                     Change Password
                 </button>
-                <button onclick="logout()" class="px-3.5 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
+                <button onclick="logout()" class="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl text-xs font-semibold transition flex items-center gap-1.5">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     Logout
                 </button>
@@ -428,6 +437,19 @@ HTML_PAGE = """<!DOCTYPE html>
             document.getElementById('barActive').style.width = `${Math.min(activeUsers.length * 10, 100)}%`;
             document.getElementById('barIps').style.width = `${Math.min(ips * 10, 100)}%`;
 
+            // Iran Node Status Indicator
+            const iranDot = document.getElementById('iranStatusDot');
+            const iranText = document.getElementById('iranStatusText');
+            if (iranDot && iranText) {
+                if (data.iranApiUrl) {
+                    iranDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
+                    iranText.innerText = 'Iran: ' + data.iranApiUrl.replace(/^https?:\/\//, '');
+                } else {
+                    iranDot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400';
+                    iranText.innerText = 'Configure Iran URL';
+                }
+            }
+
             // Render Receipts
             const recGrid = document.getElementById('receiptsGrid');
             if (pending.length === 0) {
@@ -617,6 +639,51 @@ HTML_PAGE = """<!DOCTYPE html>
             }
         }
 
+        async function syncIranServer() {
+            const icon = document.getElementById('syncIranIcon');
+            if (icon) icon.classList.add('animate-spin');
+            showToast("Connecting to Iran node...", "info");
+
+            try {
+                const res = await fetch('/api/admin/sync-iran', {
+                    method: 'POST',
+                    headers: { 'Authorization': authHeader }
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    showToast(`Sync Successful! Found ${data.totalInIran} receipts (${data.added} new imported)`, "success");
+                    loadData();
+                } else {
+                    showToast(data.error || "Sync failed", "error");
+                }
+            } catch (e) {
+                showToast("Sync request failed: " + e.message, "error");
+            } finally {
+                if (icon) setTimeout(() => icon.classList.remove('animate-spin'), 600);
+            }
+        }
+
+        async function promptSetIranUrl() {
+            const current = (cachedData && cachedData.iranApiUrl) || 'http://77.104.92.169:3000';
+            const newUrl = prompt("Enter Iran Server Customer API URL (e.g. http://77.104.92.169:3000 or https://clients.donyayelenttormoz.ir):", current);
+            if (!newUrl || newUrl.trim() === "" || newUrl === current) return;
+            try {
+                const res = await fetch('/api/admin/set-iran-url', {
+                    method: 'POST',
+                    headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: newUrl.trim() })
+                });
+                if (res.ok) {
+                    showToast("Iran API URL updated!", "success");
+                    syncIranServer();
+                } else {
+                    showToast("Failed to update URL", "error");
+                }
+            } catch (e) {
+                showToast("Network error", "error");
+            }
+        }
+
         async function deleteSubscriber(id) {
             if (!confirm("Are you sure you want to remove this subscriber?")) return;
             try {
@@ -772,7 +839,33 @@ class FastAdminHandler(http.server.BaseHTTPRequestHandler):
                 self.send_json(401, {"error": "Unauthorized"})
                 return
             db = load_db()
-            
+
+            # Auto-sync receipts from Iran server if configured
+            iran_api = db.get("iranApiUrl", "")
+            if iran_api:
+                try:
+                    ctx = ssl.create_default_context()
+                    ctx.check_hostname = False
+                    ctx.verify_mode = ssl.CERT_NONE
+                    sync_req = urllib.request.Request(
+                        f"{iran_api}/api/admin/receipts",
+                        headers={"User-Agent": "SmartDNS-Admin"}
+                    )
+                    with urllib.request.urlopen(sync_req, timeout=3, context=ctx) as resp:
+                        iran_data = json.loads(resp.read().decode())
+                        iran_receipts = iran_data.get("receipts", [])
+                        existing_ids = {r.get("id") for r in db.get("receipts", [])}
+                        changed = False
+                        for r in iran_receipts:
+                            if r.get("id") not in existing_ids:
+                                db.setdefault("receipts", []).append(r)
+                                existing_ids.add(r.get("id"))
+                                changed = True
+                        if changed:
+                            save_db(db)
+                except Exception:
+                    pass
+
             # Read intercepted domains if available
             domains = []
             if os.path.exists(DOMAINS_FILE):
@@ -789,7 +882,8 @@ class FastAdminHandler(http.server.BaseHTTPRequestHandler):
                 "receipts": db.get("receipts", []),
                 "users": db.get("users", []),
                 "plans": db.get("plans", []),
-                "domains": domains
+                "domains": domains,
+                "iranApiUrl": db.get("iranApiUrl", "")
             })
             return
 
@@ -829,8 +923,10 @@ class FastAdminHandler(http.server.BaseHTTPRequestHandler):
                     "planName": req.get("planName", "Standard Pass"),
                     "price": req.get("price", 0),
                     "durationDays": req.get("durationDays", 30),
+                    "quotaGb": req.get("quotaGb", 50),
                     "refNumber": req.get("refNumber"),
                     "ip": req.get("ip", ""),
+                    "imageBase64": req.get("imageBase64", ""),
                     "status": "PENDING",
                     "submittedAt": req.get("submittedAt") or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                 }
@@ -848,6 +944,52 @@ class FastAdminHandler(http.server.BaseHTTPRequestHandler):
             return
 
         db = load_db()
+
+        if path == "/api/admin/sync-iran":
+            iran_api = db.get("iranApiUrl", "")
+            if not iran_api:
+                self.send_json(400, {"error": "Iran API URL not configured. Enter it in Settings."})
+                return
+            try:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                sync_req = urllib.request.Request(
+                    f"{iran_api}/api/admin/receipts",
+                    headers={"User-Agent": "SmartDNS-Admin"}
+                )
+                with urllib.request.urlopen(sync_req, timeout=6, context=ctx) as resp:
+                    iran_data = json.loads(resp.read().decode())
+                    iran_receipts = iran_data.get("receipts", [])
+                    existing_ids = {r.get("id") for r in db.get("receipts", [])}
+                    added = 0
+                    for r in iran_receipts:
+                        if r.get("id") not in existing_ids:
+                            db.setdefault("receipts", []).append(r)
+                            existing_ids.add(r.get("id"))
+                            added += 1
+                    if added > 0:
+                        save_db(db)
+                    self.send_json(200, {
+                        "success": True,
+                        "added": added,
+                        "totalInIran": len(iran_receipts),
+                        "iranApi": iran_api
+                    })
+                    return
+            except Exception as e:
+                self.send_json(500, {"error": f"Failed to connect to Iran node ({iran_api}): {str(e)}"})
+                return
+
+        if path == "/api/admin/set-iran-url":
+            url_val = req.get("url", "").strip().rstrip("/")
+            if url_val:
+                db["iranApiUrl"] = url_val
+                save_db(db)
+                self.send_json(200, {"success": True, "iranApiUrl": url_val})
+                return
+            self.send_json(400, {"error": "Invalid URL"})
+            return
 
         if path.startswith("/api/admin/receipts/") and path.endswith("/approve"):
             rec_id = path.split("/")[4]
