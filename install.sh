@@ -207,7 +207,6 @@ server {
 
 server {
     listen ${ADMIN_PORT} ssl;
-    http2 on;
     server_name ${ADMIN_DOMAIN};
 
     ssl_certificate /etc/letsencrypt/live/${ADMIN_DOMAIN}/fullchain.pem;
@@ -457,7 +456,6 @@ server {
 
 server {
     listen 127.0.0.1:8443 ssl;
-    http2 on;
     server_name ${CUSTOMER_DOMAIN};
 
     ssl_certificate /etc/letsencrypt/live/${CUSTOMER_DOMAIN}/fullchain.pem;
@@ -496,15 +494,17 @@ frontend sni_in
     tcp-request inspect-delay 5s
     tcp-request content accept if { req_ssl_hello_type 1 }
 
-    # Customer Web Portal Route
-    use_backend backend_customer if { req_ssl_sni -i ${CUSTOMER_DOMAIN} }
+    # Customer Web Portal Route (matches SNI)
+    acl is_customer req.ssl_sni -i ${CUSTOMER_DOMAIN}
+    acl is_customer req_ssl_sni -i ${CUSTOMER_DOMAIN}
+    use_backend backend_customer if is_customer
 
     # Transparent Gaming Egress Route
     default_backend backend_kharej
 
 backend backend_customer
     mode tcp
-    server local_nginx 127.0.0.1:8443 check
+    server local_nginx 127.0.0.1:8443
 
 backend backend_kharej
     mode tcp
