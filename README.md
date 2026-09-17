@@ -80,7 +80,7 @@
 Log into your **Kharej (Foreign)** server as `root` and run:
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/Kayjz/DNS/main/smart-dns.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/Alborzze/Smart-Dns/main/smart-dns.sh)
 ```
 
 1. Select **Option 1**: `Kharej (Outside Iran) - Egress Gateway & Master Admin`.
@@ -94,7 +94,7 @@ bash <(curl -sSL https://raw.githubusercontent.com/Kayjz/DNS/main/smart-dns.sh)
 Log into your **Iran** server as `root` and run:
 
 ```bash
-bash <(curl -sSL https://raw.githubusercontent.com/Kayjz/DNS/main/smart-dns.sh)
+bash <(curl -sSL https://raw.githubusercontent.com/Alborzze/Smart-Dns/main/smart-dns.sh)
 ```
 
 1. Select **Option 2**: `Iran - Edge SmartDNS & Customer Portal`.

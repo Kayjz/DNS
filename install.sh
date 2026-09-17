@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # SMART-DNS DISTRIBUTED SYSTEM: KHAREJ ADMIN + IRAN CUSTOMER PORTALS
-# GitHub: https://github.com/Kayjz/DNS
+# GitHub: https://github.com/Alborzze/Smart-Dns
 # ==============================================================================
 
 set -e
@@ -81,7 +81,7 @@ EOF
 }
 
 register_cli_command() {
-    curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/smart-dns.sh" -o /usr/local/bin/smart-dns
+    curl -sSL "https://raw.githubusercontent.com/Alborzze/Smart-Dns/main/smart-dns.sh" -o /usr/local/bin/smart-dns
     chmod +x /usr/local/bin/smart-dns
 }
 
@@ -238,7 +238,7 @@ EOF
         fi
 
         mkdir -p /opt/smartdns-admin
-        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/admin_server.py?v=$(date +%s)" -o /opt/smartdns-admin/admin_server.py
+        curl -sSL "https://raw.githubusercontent.com/Alborzze/Smart-Dns/main/panel/admin_server.py?v=$(date +%s)" -o /opt/smartdns-admin/admin_server.py
         chmod +x /opt/smartdns-admin/admin_server.py
 
         # Setup systemd service for Admin Portal (Python 3)
@@ -513,7 +513,7 @@ EOF
 
         # Deploy Python Customer Service
         mkdir -p /opt/smartdns-customer
-        curl -sSL "https://raw.githubusercontent.com/Kayjz/DNS/main/panel/customer_server.py?v=$(date +%s)" -o /opt/smartdns-customer/customer_server.py
+        curl -sSL "https://raw.githubusercontent.com/Alborzze/Smart-Dns/main/panel/customer_server.py?v=$(date +%s)" -o /opt/smartdns-customer/customer_server.py
         chmod +x /opt/smartdns-customer/customer_server.py
 
         cat > /etc/systemd/system/smartdns-customer.service << SVC
